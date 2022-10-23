@@ -19,6 +19,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.tag.BlockTags;
 import net.minecraft.tag.ItemTags;
 import net.minecraft.tag.Tag;
+import net.minecraft.tag.TagKey;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Pair;
 import net.minecraft.util.registry.Registry;
@@ -114,9 +115,9 @@ public class Phase {
         return this;
     }
 
-    public Phase itemTag(String tagId) {
-        return itemTag(tagId, true);
-    }
+//    public Phase itemTag(String tagId) {
+//        return itemTag(tagId, true);
+//    }
 
     /**
      * Adds all {@link Item} instances stored in the item {@link Tag} represented by the id in {@link ItemTags}, if it exists, to this {@link Phase}.
@@ -124,27 +125,27 @@ public class Phase {
      * @return this phase
      * @see Phase#item(Item, boolean)
      */
-    public Phase itemTag(String tagId, boolean restrictRecipes) {
-        Tag<Item> tag = ItemTags.getTagGroup().getTag(new Identifier(tagId));
-        if(tag != null) {
-            tag.values().forEach(value -> item(value, restrictRecipes));
+    public Phase itemTag(String tagId) {
+        Identifier identifier = new Identifier(tagId);
+        var entries = Registry.ITEM.getEntryList(TagKey.of(Registry.ITEM_KEY, identifier));
+        if(entries.isPresent()) {
             blacklistedItemTags.add(tagId);
+            entries.get().forEach(tagEntry -> item(tagEntry.value()));
         } else {
             GamePhases.LOGGER.warn(String.format("Item tag '%s' was referenced in phase '%s', but the tag is not present!", tagId, id));
         }
-
         return this;
     }
 
     public Phase blockTag(String tagId, Block replacement) {
-        Tag<Block> tag = BlockTags.getTagGroup().getTag(new Identifier(tagId));
-        if(tag != null) {
+        Identifier identifier = new Identifier(tagId);
+        var entries = Registry.BLOCK.getEntryList(TagKey.of(Registry.BLOCK_KEY, identifier));
+        if(entries.isPresent()) {
             blacklistedBlockTags.add(tagId);
-            tag.values().forEach(tagEntry -> block(tagEntry, replacement));
+            entries.get().forEach(tagEntry -> block(tagEntry.value(), replacement));
         } else {
             GamePhases.LOGGER.warn(String.format("Block tag '%s' was referenced in phase '%s', but the tag is not present!", tagId, id));
         }
-
         return this;
     }
 
@@ -191,7 +192,8 @@ public class Phase {
      * @return {@code true} if this phase restricts the given {@link Item}, otherwise {@code false}
      */
     public boolean restricts(Item item) {
-        return blacklistedItems.contains(item);
+        return blacklistedItems.contains(item) ||
+                item.getDefaultStack().streamTags().anyMatch(itemTagKey -> blacklistedItemTags.contains(itemTagKey.toString()));
     }
 
     /**
